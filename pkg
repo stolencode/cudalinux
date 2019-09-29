@@ -1,0 +1,164 @@
+#!/bin/bash
+# pkg ver. 0.1
+# written by Ryan Cuda
+# simple Linux From Scratch package manager
+# eventually, the db will move to somwhere else like /var/cache/package.db
+# my repo lists will basically just be SQL files that point to where to wget the packages.
+# I'll have to write the logic for "pkg -i $pkg" will also perform something like
+# mkdir -p /var/cache/packages/$return_pkg.$return_ver.$return_arch/
+# wget https://reposerver.local/repo/$pkg -O /var/cache/packages/$return_pkg.$return_ver.$return_arch/
+# or maybe in the future I'll just put all of the .pkgs into /var/cache/packages, but then
+# I'll either have to rename 'installed-files.txt' to $pkg-installed-files.txt, or perhaps
+# start tracking this in the database itsself.  But for now, it is at least minimally funcitonal
+# you can search, install and remove packages via a single command.
+
+
+if [ "$EUID" -ne 0 ]
+	  then 
+		  bold=$(tput bold)
+		  normal=$(tput sgr0)
+
+		  echo "${bold}'pkg'${normal} must be run as root"
+		  exit 
+	    fi
+
+while getopts ":i:r:s:a:" arg; do
+	case "${arg}" in
+		i)
+			i=${OPTARG}
+
+         bold=$(tput bold)
+         normal=$(tput sgr0)
+
+         return_name=$(sqlite3 /var/cache/packages/package.db 'select "name" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_pkg=$(sqlite3 /var/cache/packages/package.db 'select "package" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_ver=$(sqlite3 /var/cache/packages/package.db 'select "version" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_arch=$(sqlite3 /var/cache/packages/package.db 'select "architecture" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_desc=$(sqlite3 /var/cache/packages/package.db 'select "about" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_ins=$(sqlite3 /var/cache/packages/package.db 'select "installed" from PACKAGES where "name" like "'${OPTARG}'";')
+         return_deps=$(sqlite3 /var/cache/packages/package.db 'select "dependencies" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			if [[ ${return_ins} != $NULL ]]
+			then
+			echo ${bold}"'${return_name}'${normal} is already installed."
+			else
+			if [[ ${return_deps} != $NULL ]]
+			   then
+                           	while read -r dep;
+				do /usr/sbin/pkg -i $dep;
+		                done <<< ${return_deps}
+			else
+			
+			echo "no dependencies to install"
+
+			echo "installing ${OPTARG}"
+			tar -xvzf /var/cache/packages/$return_pkg.$return_ver.$return_arch.pkg -C /
+
+			FILE=/tmp/post-install.sh
+			if [ ! -f $FILE ]; 
+			   then
+				echo "no post-install.sh"
+                           else
+				sh $FILE
+				rm -rfv $FILE
+			
+
+			
+			fi
+			fi
+			sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET "installed" = datetime("now") WHERE "name" LIKE "'$return_name'";'
+			echo ${bold}"'${return_name}'${normal} installed on $(date)"
+			exit
+		fi
+			;;
+		r)
+            		r=${OPTARG}
+
+                        bold=$(tput bold)
+                        normal=$(tput sgr0)
+
+                        return_name=$(sqlite3 /var/cache/packages/package.db 'select "name" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_pkg=$(sqlite3 /var/cache/packages/package.db 'select "package" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_ver=$(sqlite3 /var/cache/packages/package.db 'select "version" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_arch=$(sqlite3 /var/cache/packages/package.db 'select "architecture" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_desc=$(sqlite3 /var/cache/packages/package.db 'select "about" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_ins=$(sqlite3 /var/cache/packages/package.db 'select "installed" from PACKAGES where "name" like "'${OPTARG}'";')
+
+                        return_deps=$(sqlite3 /var/cache/packages/package.db 'select "dependencies" from PACKAGES where "name" like "'${OPTARG}'";')
+
+
+			if [[ ${return_ins} != $NULL ]];
+			then
+
+	    			echo "removing ${return_name}"
+
+				UNINSTALL=$(sqlite3 /var/cache/packages/package.db "SELECT * FROM '${return_name}';")
+				
+				while read -r line;
+				   do 
+				      find $line -type f -exec rm -rfv {} \;;
+				   done <<< $UNINSTALL
+				
+				echo "package ${bold}'${return_name}'${normal} removed."
+
+				sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET "installed" = "" WHERE "name" LIKE "'$return_name'";'
+			else
+				echo "no package named ${bold}'${OPTARG}'${normal} is installed..."
+				exit
+			fi
+			;;
+		s)
+			s=${OPTARG}
+			echo "searching for ${OPTARG} "
+
+			bold=$(tput bold)
+			normal=$(tput sgr0)
+
+
+			return_name=$(sqlite3 /var/cache/packages/package.db 'select "name" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			if [[ ${return_name} == ${OPTARG} ]];
+			then
+			return_name=$(sqlite3 /var/cache/packages/package.db 'select "name" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_pkg=$(sqlite3 /var/cache/packages/package.db 'select "package" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_ver=$(sqlite3 /var/cache/packages/package.db 'select "version" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_arch=$(sqlite3 /var/cache/packages/package.db 'select "architecture" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_desc=$(sqlite3 /var/cache/packages/package.db 'select "about" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_ins=$(sqlite3 /var/cache/packages/package.db 'select "installed" from PACKAGES where "name" like "'${OPTARG}'";')
+
+			return_deps=$(sqlite3 /var/cache/packages/package.db 'select "dependencies" from PACKAGES where "name" like "'${OPTARG}'";')
+			echo ${bold}NAME: ${normal}$return_name
+			echo ${bold}PACKAGE:${normal} $return_pkg
+		        echo ${bold}VERSION:${normal} $return_ver
+	       		echo ${bold}ARCHITECTURE:${normal} $return_arch
+			echo ${bold}DESCRIPTION:${normal} $return_desc
+			echo ${bold}INSTALLED:${normal} $return_ins
+			echo ${bold}DEPENDENCIES:${normal} $return_deps
+		else
+				echo "no package named ${bold}'${OPTARG}'${normal} found.  Are sure you spelled it right?"
+			exit
+		fi
+		;;
+		a)
+		a=${OPTARG}
+
+		if [[ ${OPTARG} == "list" ]]
+		then
+		return_a=$(sqlite3 /var/cache/packages/package.db 'select "name" from PACKAGES where "installed" IS NOT NULL;')
+			while read -r p; do echo $p; done <<< $return_a
+			else
+				echo "ex; 'pkg -a list'"
+		fi
+				;;
+		esac
+done
