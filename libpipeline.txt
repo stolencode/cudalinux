@@ -1,0 +1,40 @@
+NAME=libpipeline
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=libpipeline-1.4.1
+
+cd /sources
+
+tar xf libpipeline-1.4.1.tar.gz
+cd libpipeline-1.4.1
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+
+PKG_CONFIG_PATH=/tools/lib/pkgconfig ./configure --prefix=/usr
+
+make
+
+make install
+
+make DESTDIR=$FAKEROOT install
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Libpipeline package contains a library for manipulating pipelines of subprocesses in a flexible and convenient way." WHERE name IS "libpipeline";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

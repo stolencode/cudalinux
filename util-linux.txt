@@ -1,0 +1,52 @@
+NAME=util-linux
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=util-linux-2.29.1
+
+cd /sources
+
+tar xf util-linux-2.29.1.tar.xz
+cd util-linux-2.29.1
+
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -pv /var/lib/hwclock
+
+./configure ADJTIME_PATH=/var/lib/hwclock/adjtime   \
+            --docdir=/usr/share/doc/util-linux-2.29.1 \
+            --disable-chfn-chsh  \
+            --disable-login      \
+            --disable-nologin    \
+            --disable-su         \
+            --disable-setpriv    \
+            --disable-runuser    \
+            --disable-pylibmount \
+            --disable-static     \
+            --without-python     \
+            --enable-libmount-force-mountinfo
+     
+make
+            
+make install
+ 
+make DESTDIR=$FAKEROOT install
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Util-linux package contains miscellaneous utility programs. Among them are utilities for handling file systems, consoles, partitions, and messages." WHERE name IS "util-linux";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES

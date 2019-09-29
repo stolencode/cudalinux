@@ -1,0 +1,65 @@
+NAME=coreutils
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=coreutils-8.26
+
+
+cd /sources
+
+tar xf coreutils-8.26.tar.xz
+cd coreutils-8.26
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+patch -Np1 -i ../coreutils-8.26-i18n-1.patch
+
+sed -i '/test.lock/s/^/#/' gnulib-tests/gnulib.mk
+
+FORCE_UNSAFE_CONFIGURE=1 ./configure \
+            --prefix=/usr            \
+            --enable-no-install-program=kill,uptime
+
+FORCE_UNSAFE_CONFIGURE=1 make
+
+make install        
+
+
+mv -v /usr/bin/{cat,chgrp,chmod,chown,cp,date,dd,df,echo} /bin
+mv -v /usr/bin/{false,ln,ls,mkdir,mknod,mv,pwd,rm} /bin
+mv -v /usr/bin/{rmdir,stty,sync,true,uname} /bin
+mv -v /usr/bin/chroot /usr/sbin
+mv -v /usr/share/man/man1/chroot.1 /usr/share/man/man8/chroot.8
+sed -i s/\"1\"/\"8\"/1 /usr/share/man/man8/chroot.8
+
+mv -v /usr/bin/{head,sleep,nice,test,[} /bin
+
+make DESTDIR=$FAKEROOT install
+ 
+mv -v $FAKEROOT/usr/bin/{cat,chgrp,chmod,chown,cp,date,dd,df,echo} $FAKEROOT/bin
+mv -v $FAKEROOT/usr/bin/{false,ln,ls,mkdir,mknod,mv,pwd,rm} $FAKEROOT/bin
+mv -v $FAKEROOT/usr/bin/{rmdir,stty,sync,true,uname} $FAKEROOT/bin
+mv -v $FAKEROOT/usr/bin/chroot $FAKEROOT/usr/sbin
+mv -v $FAKEROOT/usr/share/man/man1/chroot.1 $FAKEROOT/usr/share/man/man8/chroot.8
+sed -i s/\"1\"/\"8\"/1 $FAKEROOT/usr/share/man/man8/chroot.8
+
+mv -v $FAKEROOT/usr/bin/{head,sleep,nice,test,[} $FAKEROOT/bin
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Coreutils package contains utilities for showing and setting the basic system characteristics." WHERE name IS "coreutils";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

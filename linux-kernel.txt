@@ -1,0 +1,83 @@
+NAME=linux-kernel
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=linux-4.9.9
+
+cd /sources
+
+tar xf linux-4.9.9.tar.xz
+cd linux-4.9.9
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+ 
+make mrproper
+
+cp -vR /sources/config /sources/kernel-headers-4.9.9/.config
+
+make olddefconfig
+
+make
+
+make modules_install
+
+cp -v arch/x86/boot/bzImage /boot/vmlinuz-4.9.9-lfs-8.0-systemd
+
+cp -v System.map /boot/System.map-4.9.9
+
+cp -v .config /boot/config-4.9.9
+
+install -d /usr/share/doc/linux-4.9.9
+cp -r Documentation/* /usr/share/doc/linux-4.9.9
+
+make DESTDIR=$FAKEROOT modules_install
+
+mkdir -p $FAKEROOT/boot
+
+cp -v arch/x86/boot/bzImage $FAKEROOT/boot/vmlinuz-4.9.9-lfs-8.0-systemd
+
+cp -v System.map $FAKEROOT/boot/System.map-4.9.9
+
+cp -v .config $FAKEROOT/boot/config-4.9.9
+
+install -d $FAKEROOT/usr/share/doc/linux-4.9.9
+cp -r Documentation/* $FAKEROOT/usr/share/doc/linux-4.9.9
+
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "TThe Texinfo package contains programs for reading, writing, and converting info pages." WHERE name IS "texinfo";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "TThe Texinfo package contains programs for reading, writing, and converting info pages." WHERE name IS "texinfo";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

@@ -1,0 +1,51 @@
+# unzip
+
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+
+cd /sources
+
+tar xf unzip60.tar.gz
+cd unzip60
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -p $FAKEROOT
+
+### Configure ###
+
+
+            
+### Make ###
+
+
+make -f unix/Makefile generic
+
+### Install ###
+ 
+make prefix=$FAKEROOT/usr MANDIR=/usr/share/man/man1 -f unix/Makefile install
+
+### Post-Install ###
+
+
+### create binary package and install the files
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+unset VER
+unset PKG
+unset FAKEROOT
+unset ARCH

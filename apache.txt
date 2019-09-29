@@ -1,0 +1,100 @@
+NAME=httpd
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=httpd-2.4.25
+DEPS=apr-util pcre
+
+cd /sources
+
+wget https://archive.apache.org/dist/httpd/httpd-2.4.25.tar.bz2
+
+wget http://www.linuxfromscratch.org/patches/blfs/8.0/httpd-2.4.25-blfs_layout-1.patch
+
+tar xf httpd-2.4.25.tar.bz2
+cd httpd-2.4.25
+
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+groupadd -g 25 apache &&
+useradd -c "Apache Server" -d /srv/www -g apache \
+        -s /bin/false -u 25 apache
+
+patch -Np1 -i ../httpd-2.4.25-blfs_layout-1.patch           &&
+
+sed '/dir.*CFG_PREFIX/s@^@#@' -i support/apxs.in            &&
+
+./configure --enable-authnz-fcgi                            \
+            --enable-layout=BLFS                            \
+            --enable-mods-shared="all cgi"                  \
+            --enable-mpms-shared=all                        \
+            --enable-suexec=shared                          \
+            --with-apr=/usr/bin/apr-1-config                \
+            --with-apr-util=/usr/bin/apu-1-config           \
+            --with-suexec-bin=/usr/lib/httpd/suexec         \
+            --with-suexec-caller=apache                     \
+            --with-suexec-docroot=/srv/www                  \
+            --with-suexec-logfile=/var/log/httpd/suexec.log \
+            --with-suexec-uidmin=100                        \
+            --with-suexec-userdir=public_html               &&
+make
+
+make install
+
+mv -v /usr/sbin/suexec /usr/lib/httpd/suexec
+chgrp apache           /usr/lib/httpd/suexec
+chmod 4754             /usr/lib/httpd/suexec
+chown -v -R apache:apache /srv/www
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/tmp
+
+cat > $FAKEROOT/tmp/post-install.sh << "EOF"
+#!/bin/sh
+# begin post-install.sh
+
+groupadd -g 25 apache &&
+useradd -c "Apache Server" -d /srv/www -g apache \
+        -s /bin/false -u 25 apache
+
+mv -v /usr/sbin/suexec /usr/lib/httpd/suexec
+chgrp apache           /usr/lib/httpd/suexec
+chmod 4754             /usr/lib/httpd/suexec
+chown -v -R apache:apache /srv/www
+
+# end post-install.sh
+
+EOF
+
+cd /sources
+
+#wget http://www.linuxfromscratch.org/blfs/downloads/8.0/blfs-systemd-units-20160602.tar.bz2
+
+#tar xf blfs-systemd-units-20160602.tar.bz2
+
+cd blfs-systemd-units-20160602
+
+make install-httpd
+
+make DESTDIR=$FAKEROOT install-httpd
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Apache HTTPD package contains an open-source HTTP server. It is useful for creating local intranet web sites or running huge web serving operations." WHERE name IS "apache";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

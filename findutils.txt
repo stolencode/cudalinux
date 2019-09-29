@@ -1,0 +1,51 @@
+NAME=findutils
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=findutils-4.6.0
+
+cd /sources
+
+tar xf findutils-4.6.0.tar.gz
+cd findutils-4.6.0
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+sed -i 's/test-lock..EXEEXT.//' tests/Makefile.in
+
+./configure --prefix=/usr --localstatedir=/var/lib/locate
+
+make 
+
+make install 
+
+mv -v /usr/bin/find /bin
+
+sed -i 's|find:=${BINDIR}|find:=/bin|' /usr/bin/updatedb
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/bin
+
+mv -v $FAKEROOT/usr/bin/find $FAKEROOT/bin
+
+cp -vR /usr/bin/updatedb $FAKEROOT/usr/bin/
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Findutils package contains programs to find files. These programs are provided to recursively search through a directory tree and to create, maintain, and search a database (often faster than the recursive find, but unreliable if the database has not been recently updated)." WHERE name IS "findutils";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

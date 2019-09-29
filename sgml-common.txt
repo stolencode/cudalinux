@@ -1,0 +1,80 @@
+# sgml-common
+
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+
+cd /sources
+
+tar xf sgml-common-0.6.3.tgz
+cd sgml-common-0.6.3
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -p $FAKEROOT
+
+### Configure ###
+
+patch -Np1 -i ../sgml-common-0.6.3-manpage-1.patch &&
+autoreconf -f -i
+
+./configure --prefix=/usr --sysconfdir=/etc
+        
+### Make ###
+
+make
+
+### Install ###
+
+make DESTDIR=$FAKEROOT docdir=/usr/share/doc install
+
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+
+### Post-Install ###
+
+install-catalog --add /etc/sgml/sgml-ent.cat /usr/share/sgml/sgml-iso-entities-8879.1986/catalog
+
+install-catalog --add /etc/sgml/sgml-docbook.cat /etc/sgml/sgml-ent.cat
+
+mkdir -p $FAKEROOT/etc/sgml
+
+mkdir -p $FAKEROOT/usr/share/sgml
+
+cp -vR /etc/sgml $FAKEROOT/etc/
+
+cp -vR /usr/share/sgml $FAKEROOT/usr/share/
+
+### create binary package and install the files
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+unset VER
+unset PKG
+unset FAKEROOT
+unset ARCH

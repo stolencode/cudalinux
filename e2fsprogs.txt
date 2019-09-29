@@ -1,0 +1,78 @@
+NAME=e2fsprogs
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=e2fsprogs-1.43.4
+
+cd /sources
+
+tar xf e2fsprogs-1.43.4.tar.gz 
+cd e2fsprogs-1.43.4
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -v build
+cd build
+
+LIBS=-L/tools/lib                    \
+CFLAGS=-I/tools/include              \
+PKG_CONFIG_PATH=/tools/lib/pkgconfig \
+../configure --prefix=/usr           \
+             --bindir=/bin           \
+             --with-root-prefix=""   \
+             --enable-elf-shlibs     \
+             --disable-libblkid      \
+             --disable-libuuid       \
+             --disable-uuidd         \
+             --disable-fsck
+
+make
+
+make install
+
+make install-libs
+
+chmod -v u+w /usr/lib/{libcom_err,libe2p,libext2fs,libss}.a
+
+gunzip -v /usr/share/info/libext2fs.info.gz
+install-info --dir-file=/usr/share/info/dir /usr/share/info/libext2fs.info
+
+makeinfo -o      doc/com_err.info ../lib/et/com_err.texinfo
+
+install -v -m644 doc/com_err.info /usr/share/info
+
+install-info --dir-file=/usr/share/info/dir /usr/share/info/com_err.info
+
+
+
+make DESTDIR=$FAKEROOT install
+
+make DESTDIR=$FAKEROOT install-libs
+
+chmod -v u+w $FAKEROOT/usr/lib/{libcom_err,libe2p,libext2fs,libss}.a
+
+mkdir -p $FAKEROOT/usr/share
+
+
+cp -vR /usr/share/info $FAKEROOT/usr/share/
+
+cp -vR /usr/share/info/libext2fs.info $FAKEROOT/usr/share/info/
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The E2fsprogs package contains the utilities for handling the ext2 file system. It also supports the ext3 and ext4 journaling file systems." WHERE name IS "e2fsprogs";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

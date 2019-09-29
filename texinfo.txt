@@ -1,0 +1,49 @@
+NAME=texinfo
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=texinfo-6.3
+
+cd /sources
+
+tar xf texinfo-6.3.tar.xz
+cd texinfo-6.3
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+ 
+./configure --prefix=/usr --disable-static
+
+make
+
+make install
+
+pushd /usr/share/info
+rm -v dir
+for f in *
+  do install-info $f dir 2>/dev/null
+done
+popd
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/usr/share/info
+
+cp -vR /usr/share/info/* $FAKEROOT/usr/share/info/
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "TThe Texinfo package contains programs for reading, writing, and converting info pages." WHERE name IS "texinfo";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES

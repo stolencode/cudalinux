@@ -1,0 +1,51 @@
+NAME=kbd
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=kbd-2.0.4
+
+cd /sources
+
+tar xf kbd-2.0.4.tar.xz
+cd kbd-2.0.4
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+patch -Np1 -i ../kbd-2.0.4-backspace-1.patch
+
+sed -i 's/\(RESIZECONS_PROGS=\)yes/\1no/g' configure
+sed -i 's/resizecons.8 //' docs/man/man8/Makefile.in
+
+PKG_CONFIG_PATH=/tools/lib/pkgconfig ./configure --prefix=/usr --disable-vlock
+
+make
+
+make install
+
+
+mkdir -v       /usr/share/doc/kbd-2.0.4
+cp -R -v docs/doc/* /usr/share/doc/kbd-2.0.4
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -v       $FAKEROOT/usr/share/doc/kbd-2.0.4
+cp -R -v docs/doc/* $FAKEROOT/usr/share/doc/kbd-2.0.4
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Kbd package contains key-table files, console fonts, and keyboard utilities." WHERE name IS "kbd";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

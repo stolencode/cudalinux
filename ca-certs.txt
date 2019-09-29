@@ -1,0 +1,78 @@
+# ca-certificates
+
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+
+cd /sources
+
+mkdir ca-certs
+cd ca-certs
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -p $FAKEROOT
+
+### Configure ###
+
+install -vm755 make-ca /usr/sbin/make-ca.sh
+/usr/sbin/make-ca.sh
+
+            
+### Make ###
+
+
+### Install ###
+
+install -vm755 make-ca.sh /usr/sbin/make-ca.sh
+/usr/sbin/make-ca.sh
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+
+### Post-Install ###
+
+cd /sources/$PKG
+
+mkdir -p $FAKEROOT/usr/sbin/
+
+cp -vR make-ca.sh $FAKEROOT/usr/sbin/
+
+mkdir -p $FAKEROOT/etc
+
+cp -vR /etc/pki $FAKEROOT/etc/
+
+cp -vR /etc/ssl $FAKEROOT/etc/
+
+### create binary package and install the files
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+unset VER
+unset PKG
+unset FAKEROOT
+unset ARCH

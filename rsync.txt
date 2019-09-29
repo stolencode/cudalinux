@@ -1,0 +1,110 @@
+NAME=rsync
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=rsync-3.1.2
+DEPS=popt
+
+cd /sources
+
+wget https://www.samba.org/ftp/rsync/src/rsync-3.1.2.tar.gz
+tar xf rsync-3.1.2.tar.gz
+cd rsync-3.1.2
+
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr --without-included-zlib &&
+make
+
+make install
+
+install -v -m755 -d          /usr/share/doc/rsync-3.1.2/api
+install -v -m644 dox/html/*  /usr/share/doc/rsync-3.1.2/api
+
+cat > /etc/rsyncd.conf << "EOF"
+# This is a basic rsync configuration file
+# It exports a single module without user authentication.
+
+motd file = /home/rsync/welcome.msg
+use chroot = yes
+
+[localhost]
+    path = /home/rsync
+    comment = Default rsync module
+    read only = yes
+    list = yes
+    uid = rsyncd
+    gid = rsyncd
+
+EOF
+
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/usr/share/doc
+cp -vR /usr/share/doc/rsync-3.1.2 $FAKEROOT/usr/share/doc/
+
+mkdir -p $FAKEROOT/tmp
+
+cat > $FAKEROOT/tmp/post-install.sh << "EOF"
+#!/bin/sh
+# begin post-install.sh
+
+groupadd -g 48 rsyncd &&
+useradd -c "rsyncd Daemon" -d /home/rsync -g rsyncd \
+    -s /bin/false -u 48 rsyncd
+    
+cat > /etc/rsyncd.conf << "EOF"
+# This is a basic rsync configuration file
+# It exports a single module without user authentication.
+
+motd file = /home/rsync/welcome.msg
+use chroot = yes
+
+[localhost]
+    path = /home/rsync
+    comment = Default rsync module
+    read only = yes
+    list = yes
+    uid = rsyncd
+    gid = rsyncd
+
+EOF
+    
+
+# end post-install.sh
+
+EOF
+
+
+cd /sources
+
+#wget http://www.linuxfromscratch.org/blfs/downloads/8.0/blfs-systemd-units-20160602.tar.bz2
+
+#tar xf blfs-systemd-units-20160602.tar.bz2
+
+cd blfs-systemd-units-20160602
+
+make install-rsyncd
+
+make DESTDIR=$FAKEROOT install-rsyncd
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, dependencies, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", "'$DEPS'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The rsync package contains the rsync utility. This is useful for synchronizing large file archives over a network." WHERE name IS "rsync";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

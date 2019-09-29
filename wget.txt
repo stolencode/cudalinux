@@ -1,0 +1,53 @@
+# wget
+
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+
+cd /sources
+
+tar xf wget-1.19.1.tar.xz
+cd wget-1.19.1
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+mkdir -p $FAKEROOT
+
+### Configure ###
+
+./configure --prefix=/usr      \
+            --sysconfdir=/etc  \
+            --with-ssl=openssl &&
+        
+### Make ###
+
+make
+
+### Install ###
+
+make DESTDIR=$FAKEROOT install
+
+### Post-Install ###
+
+echo "check_certificate = off" >> $FAKEROOT/etc/wgetrc
+
+### create binary package and install the files
+
+mkdir -p $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH
+
+tree $FAKEROOT > $FAKEROOT/var/cache/packages/$PKG.$VER.$ARCH/installed-files.txt
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages/$PKG.$VER.$ARCH
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg .
+
+cd /
+
+tar xvzf /var/cache/packages/$PKG.$VER.$ARCH/$PKG.$VER.$ARCH.pkg
+
+unset VER
+unset PKG
+unset FAKEROOT
+unset ARCH

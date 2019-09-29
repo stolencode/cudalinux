@@ -1,0 +1,40 @@
+NAME=less
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=less-481
+
+
+cd /sources
+
+tar xf less-481.tar.gz
+cd less-481
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr --sysconfdir=/etc
+
+make
+
+make install
+
+make DESTDIR=$FAKEROOT install
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Less package contains a text file viewer." WHERE name IS "less";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

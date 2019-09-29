@@ -1,0 +1,46 @@
+NAME=iproute
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=iproute2-4.9.0
+
+
+cd /sources
+
+tar xf iproute2-4.9.0.tar.xz
+cd iproute2-4.9.0
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+sed -i /ARPD/d Makefile
+sed -i 's/arpd.8//' man/man8/Makefile
+rm -v doc/arpd.sgml
+
+sed -i 's/m_ipt.o//' tc/Makefile
+
+make
+
+make DOCDIR=/usr/share/doc/iproute2-4.9.0 install
+
+make DESTDIR=$FAKEROOT DOCDIR=/usr/share/doc/iproute2-4.9.0 install
+
+
+mv -v $FAKEROOT/usr/bin/gzip $FAKEROOT/bin
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = " The IPRoute2 package contains programs for basic and advanced IPV4-based networking." WHERE name IS "iproute";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

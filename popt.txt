@@ -1,0 +1,49 @@
+NAME=popt
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=popt-1.16
+DEPS=
+
+cd /sources
+
+wget https://ftp.osuosl.org/pub/blfs/conglomeration/popt/popt-1.16.tar.gz
+
+tar xf popt-1.16.tar.gz
+cd popt-1.16
+
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr --disable-static &&
+make
+
+make install
+
+install -v -m755 -d /usr/share/doc/popt-1.16
+install -v -m644 doxygen/html/* /usr/share/doc/popt-1.16
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/usr/share/doc/
+
+cp -vR /usr/share/doc/popt-1.16 $FAKEROOT/usr/share/doc/
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The popt package contains the popt libraries which are used by some programs to parse command-line options. " WHERE name IS "popt";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

@@ -1,0 +1,74 @@
+NAME=vim
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=vim-8.0.069
+
+cd /sources
+
+tar xf vim-8.0.069.tar.bz2
+cd vim80
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+ 
+echo '#define SYS_VIMRC_FILE "/etc/vimrc"' >> src/feature.h
+
+./configure --prefix=/usr
+
+make
+
+make install
+
+ln -sv vim /usr/bin/vi
+for L in  /usr/share/man/{,*/}man1/vim.1; do
+    ln -sv vim.1 $(dirname $L)/vi.1
+done
+
+cat > /etc/vimrc << "EOF"
+" Begin /etc/vimrc
+
+set nocompatible
+set backspace=2
+set mouse=r
+syntax on
+if (&term == "xterm") || (&term == "putty")
+  set background=dark
+endif
+
+
+" End /etc/vimrc
+EOF
+
+
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/usr/bin
+
+cp -vR /usr/bin/vi $FAKEROOT/usr/bin/
+
+mkdir -p $FAKEROOT/usr/share/doc/vim-8.0.069
+
+cp -vR $FAKEROOT/usr/share/doc/vim-8.0.069 $FAKEROOT/usr/share/doc/
+
+mkdir -p $FAKEROOT/etc
+
+cp -vR /etc/vimrc $FAKEROOT/
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "TThe Texinfo package contains programs for reading, writing, and converting info pages." WHERE name IS "texinfo";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES

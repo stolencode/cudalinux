@@ -1,0 +1,45 @@
+NAME=apr-util
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=apr-util-1.5.4
+DEPS=apr
+
+cd /sources
+
+wget http://archive.apache.org/dist/apr/apr-util-1.5.4.tar.bz2
+
+tar xf apr-util-1.5.4.tar.bz2
+cd apr-util-1.5.4
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr       \
+            --with-apr=/usr     \
+            --with-gdbm=/usr    \
+            --with-openssl=/usr \
+            --with-crypto &&
+make
+
+make install
+
+make DESTDIR=$FAKEROOT install
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Apache Portable Runtime Utility Library provides a predictable and consistent interface to underlying client library interfaces." WHERE name IS "apr-util";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

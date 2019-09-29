@@ -1,0 +1,60 @@
+NAME=dbus
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=dbus-1.10.14
+
+cd /sources
+
+tar xf dbus-1.10.14.tar.gz
+cd dbus-1.10.14
+
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+ ./configure --prefix=/usr                       \
+              --sysconfdir=/etc                   \
+              --localstatedir=/var                \
+              --disable-static                    \
+              --disable-doxygen-docs              \
+              --disable-xml-docs                  \
+              --docdir=/usr/share/doc/dbus-1.10.14 \
+              --with-console-auth-dir=/run/console
+              
+make
+
+make install
+
+mv -v /usr/lib/libdbus-1.so.* /lib
+ln -sfv ../../lib/$(readlink /usr/lib/libdbus-1.so) /usr/lib/libdbus-1.so
+
+ln -sfv /etc/machine-id /var/lib/dbus
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/usr/lib
+
+mkdir -p $FAKEROOT/var/lib/
+
+mv -v $FAKEROOT/usr/lib/libdbus-1.so.* $FAKEROOT/lib
+cp -vR /usr/lib/libdbus-1.so $FAKEROOT/usr/lib/
+cp -vR /var/lib/dbus $FAKEROOT/var/lib/
+
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "D-Bus is a message bus system, a simple way for applications to talk to one another. D-Bus supplies both a system daemon (for events such as "new hardware device added" or "printer queue changed") and a per-user-login-session daemon (for general IPC needs among user applications). Also, the message bus is built on top of a general one-to-one message passing framework, which can be used by any two applications to communicate directly (without going through the message bus daemon)." WHERE name IS "dbus";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES

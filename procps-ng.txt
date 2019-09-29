@@ -1,0 +1,55 @@
+NAME=procps-ng
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=procps-ng-3.3.12
+
+cd /sources
+
+tar xf procps-ng-3.3.12.tar.xz 
+cd procps-ng-3.3.12
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr                            \
+            --exec-prefix=                           \
+            --libdir=/usr/lib                        \
+            --docdir=/usr/share/doc/procps-ng-3.3.12 \
+            --disable-static                         \
+            --disable-kill                           \
+            --with-systemd
+
+make
+
+make install
+
+mv -v /usr/lib/libprocps.so.* /lib
+ln -sfv ../../lib/$(readlink /usr/lib/libprocps.so) /usr/lib/libprocps.so
+
+make DESTDIR=$FAKEROOT install
+
+mkdir -p $FAKEROOT/lib
+
+mv -v $FAKEROOT/usr/lib/libprocps.so.* $FAKEROOT/lib
+
+cp -vR /usr/lib/libprocps.so $FAKEROOT/usr/lib/
+
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Procps-ng package contains programs for monitoring processes. " WHERE name IS "procps-ng";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

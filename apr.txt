@@ -1,0 +1,42 @@
+NAME=apr
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=apr-1.5.2
+
+cd /sources
+
+tar xf apr-1.5.2.tar.bz2
+cd apr-1.5.2
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+
+
+./configure --prefix=/usr    \
+            --disable-static \
+            --with-installbuilddir=/usr/share/apr-1/build &&
+make
+
+make install
+
+make DESTDIR=$FAKEROOT install
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Apache Portable Runtime (APR) is a supporting library for the Apache web server." WHERE name IS "apr";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+

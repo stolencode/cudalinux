@@ -1,0 +1,44 @@
+NAME=gzip
+VER="lfs_8.0_systemd"
+ARCH=x86_64
+PKG=gzip-1.8
+
+
+cd /sources
+
+tar xf gzip-1.8.tar.xz
+cd gzip-1.8
+
+PKG="${PWD##*/}"
+FAKEROOT=/fakeroot/$PKG
+
+./configure --prefix=/usr
+
+make
+
+make install
+
+mv -v /usr/bin/gzip /bin
+
+make DESTDIR=$FAKEROOT install
+
+mv -v $FAKEROOT/usr/bin/gzip $FAKEROOT/bin
+
+### create binary package and install the files
+
+cd $FAKEROOT
+
+mkdir -p /var/cache/packages
+
+tar -zcvf /var/cache/packages/$PKG.$VER.$ARCH.pkg .
+
+sqlite3 /var/cache/packages/package.db 'INSERT INTO PACKAGES(name, package, version, architecture, installed) VALUES("'$NAME'", "'$PKG'", "'$VER'", "'$ARCH'", datetime("now"));'
+
+sqlite3 /var/cache/packages/package.db 'UPDATE PACKAGES SET about = "The Gzip package contains programs for compressing and decompressing files." WHERE name IS "gzip";'
+
+sqlite3 /var/cache/packages/package.db "CREATE TABLE '$NAME' ('files' TEXT);"
+
+FILES=$(find $FAKEROOT -type f | sed 's,'"$FAKEROOT"',,')
+
+while read -r line; do sqlite3 /var/cache/packages/package.db "INSERT INTO '$NAME' ('files') VALUES('"$line"');"; done <<< $FILES
+
